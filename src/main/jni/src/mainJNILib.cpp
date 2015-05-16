@@ -16,6 +16,7 @@ static int sLibraryReferenceCount = 0;
 
 static void initLibraryIfNeed(){
     if(sLibraryReferenceCount == 0){
+        LOGD("Init FPDF library");
         FPDF_InitLibrary(NULL);
     }
     sLibraryReferenceCount++;
@@ -24,6 +25,7 @@ static void initLibraryIfNeed(){
 static void destroyLibraryIfNeed(){
     sLibraryReferenceCount--;
     if(sLibraryReferenceCount == 0){
+        LOGD("Destroy FPDF library");
         FPDF_DestroyLibrary();
     }
 }
@@ -36,15 +38,16 @@ class DocumentFile {
     public:
     FPDF_DOCUMENT pdfDocument;
     size_t fileSize;
-    void setFile(int fd, void *buffer){
+    void setFile(int fd, void *buffer, size_t fileLength){
         fileFd = fd;
+        fileSize = fileLength;
         fileMappedBuffer = buffer;
-        fileSize = sizeof(fileMappedBuffer);
+        LOGD("File Size: %d", (int)fileSize);
     }
     void* getFileMap() { return fileMappedBuffer; }
 
     DocumentFile() :  pdfDocument(NULL),
-                      fileMappedBuffer(NULL) {}
+                      fileMappedBuffer(NULL) { initLibraryIfNeed(); }
     ~DocumentFile();
 };
 DocumentFile::~DocumentFile(){
@@ -54,7 +57,8 @@ DocumentFile::~DocumentFile(){
 
     if(fileMappedBuffer != NULL){
         munmap(fileMappedBuffer, fileSize);
-        close(fileFd);
+        //Leave the file closing work to Java
+        //close(fileFd);
     }
 
     destroyLibraryIfNeed();
@@ -71,7 +75,9 @@ inline long getFileSize(int fd){
     }
 }
 
-JNI_FUNC(jlong, NativeHandler, nativeOpenDocument)(JNI_ARGS, jint fd){
+extern "C" { //For JNI support
+
+JNI_FUNC(jlong, PdfiumCore, nativeOpenDocument)(JNI_ARGS, jint fd){
 
     size_t fileLength = (size_t)getFileSize(fd);
     if(fileLength <= 0) return -1;
@@ -83,7 +89,7 @@ JNI_FUNC(jlong, NativeHandler, nativeOpenDocument)(JNI_ARGS, jint fd){
         if( (map = mmap( docFile->getFileMap(), fileLength, PROT_READ|PROT_WRITE, MAP_PRIVATE, fd, 0 )) == NULL){
             throw "Error mapping file";
         }
-        docFile->setFile(fd, map);
+        docFile->setFile(fd, map, fileLength);
 
         if( (docFile->pdfDocument = FPDF_LoadMemDocument( reinterpret_cast<const void*>(docFile->getFileMap()),
                                                           (int)docFile->fileSize, NULL)) == NULL) {
@@ -95,12 +101,13 @@ JNI_FUNC(jlong, NativeHandler, nativeOpenDocument)(JNI_ARGS, jint fd){
     }catch(const char* msg){
         delete docFile;
         LOGE("%s", msg);
+        LOGE("Last Error: %ld", FPDF_GetLastError());
 
         return -1;
     }
 }
 
-JNI_FUNC(void, NativeHandler, nativeCloseDocument)(JNI_ARGS, jlong documentPtr){
+JNI_FUNC(void, PdfiumCore, nativeCloseDocument)(JNI_ARGS, jlong documentPtr){
     DocumentFile *doc = reinterpret_cast<DocumentFile*>(documentPtr);
     delete doc;
 }
@@ -123,11 +130,11 @@ static jlong loadPageInternal(DocumentFile *doc, int pageIndex){
 }
 static void closePageInternal(jlong pagePtr) { FPDF_ClosePage(reinterpret_cast<FPDF_PAGE>(pagePtr)); }
 
-JNI_FUNC(jlong, NativeHandler, nativeLoadPage)(JNI_ARGS, jlong docPtr, jint pageIndex){
+JNI_FUNC(jlong, PdfiumCore, nativeLoadPage)(JNI_ARGS, jlong docPtr, jint pageIndex){
     DocumentFile *doc = reinterpret_cast<DocumentFile*>(docPtr);
     return loadPageInternal(doc, (int)pageIndex);
 }
-JNI_FUNC(jlongArray, NativeHandler, nativeLoadPages)(JNI_ARGS, jlong docPtr, jint fromIndex, jint toIndex){
+JNI_FUNC(jlongArray, PdfiumCore, nativeLoadPages)(JNI_ARGS, jlong docPtr, jint fromIndex, jint toIndex){
     DocumentFile *doc = reinterpret_cast<DocumentFile*>(docPtr);
 
     if(toIndex < fromIndex) return NULL;
@@ -144,8 +151,8 @@ JNI_FUNC(jlongArray, NativeHandler, nativeLoadPages)(JNI_ARGS, jlong docPtr, jin
     return javaPages;
 }
 
-JNI_FUNC(void, NativeHandler, nativeClosePage)(JNI_ARGS, jlong pagePtr){ closePageInternal(pagePtr); }
-JNI_FUNC(void, NativeHandler, nativeClosePages)(JNI_ARGS, jlongArray pagesPtr){
+JNI_FUNC(void, PdfiumCore, nativeClosePage)(JNI_ARGS, jlong pagePtr){ closePageInternal(pagePtr); }
+JNI_FUNC(void, PdfiumCore, nativeClosePages)(JNI_ARGS, jlongArray pagesPtr){
     int length = (int)(env -> GetArrayLength(pagesPtr));
     jlong *pages = env -> GetLongArrayElements(pagesPtr, NULL);
 
@@ -153,7 +160,7 @@ JNI_FUNC(void, NativeHandler, nativeClosePages)(JNI_ARGS, jlongArray pagesPtr){
     for(i = 0; i < length; i++){ closePageInternal(pages[i]); }
 }
 
-JNI_FUNC(jlong, NativeHandler, nativeGetNativeWindow)(JNI_ARGS, jobject objSurface){
+JNI_FUNC(jlong, PdfiumCore, nativeGetNativeWindow)(JNI_ARGS, jobject objSurface){
     ANativeWindow *nativeWindow = ANativeWindow_fromSurface(env, objSurface);
     ANativeWindow_acquire(nativeWindow);
     return reinterpret_cast<jlong>(nativeWindow);
@@ -173,7 +180,7 @@ static void renderPageInternal( FPDF_PAGE page,
                            0, FPDF_REVERSE_BYTE_ORDER );
 }
 
-JNI_FUNC(void, NativeHandler, nativeRenderPage)(JNI_ARGS, jlong pagePtr, jlong nativeWindowPtr){
+JNI_FUNC(void, PdfiumCore, nativeRenderPage)(JNI_ARGS, jlong pagePtr, jlong nativeWindowPtr){
     FPDF_PAGE page = reinterpret_cast<FPDF_PAGE>(pagePtr);
     ANativeWindow *nativeWindow = reinterpret_cast<ANativeWindow*>(nativeWindowPtr);
 
@@ -195,3 +202,5 @@ JNI_FUNC(void, NativeHandler, nativeRenderPage)(JNI_ARGS, jlong pagePtr, jlong n
 
     ANativeWindow_unlockAndPost(nativeWindow);
 }
+
+}//extern C
