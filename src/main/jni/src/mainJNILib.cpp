@@ -152,3 +152,46 @@ JNI_FUNC(void, NativeHandler, nativeClosePages)(JNI_ARGS, jlongArray pagesPtr){
     int i;
     for(i = 0; i < length; i++){ closePageInternal(pages[i]); }
 }
+
+JNI_FUNC(jlong, NativeHandler, nativeGetNativeWindow)(JNI_ARGS, jobject objSurface){
+    ANativeWindow *nativeWindow = ANativeWindow_fromSurface(env, objSurface);
+    ANativeWindow_acquire(nativeWindow);
+    return reinterpret_cast<jlong>(nativeWindow);
+}
+
+static void renderPageInternal( FPDF_PAGE page,
+                                ANativeWindow_Buffer *windowBuffer,
+                                int startX, int startY,
+                                int sizeHorizontal, int sizeVertical ){
+
+    FPDF_BITMAP pdfBitmap = FPDFBitmap_CreateEx( sizeHorizontal, sizeVertical,
+                                                 4, windowBuffer->bits, (int)windowBuffer->stride);
+
+    FPDF_RenderPageBitmap( pdfBitmap, page,
+                           startX, startY,
+                           sizeHorizontal, sizeVertical,
+                           0, FPDF_REVERSE_BYTE_ORDER );
+}
+
+JNI_FUNC(void, NativeHandler, nativeRenderPage)(JNI_ARGS, jlong pagePtr, jlong nativeWindowPtr){
+    FPDF_PAGE page = reinterpret_cast<FPDF_PAGE>(pagePtr);
+    ANativeWindow *nativeWindow = reinterpret_cast<ANativeWindow*>(nativeWindowPtr);
+
+    if(page == NULL || nativeWindow == NULL){
+        LOGE("Render page pointers invalid");
+        return;
+    }
+
+    ANativeWindow_Buffer buffer;
+    if( ANativeWindow_lock(nativeWindow, &buffer, NULL) != 0 ){
+        LOGE("Locking native window failed");
+        return;
+    }
+
+    int height = (int)buffer.height;
+    int width = (int)buffer.width;
+
+    renderPageInternal(page, &buffer, 0, 0, width, height); //Render the whole page
+
+    ANativeWindow_unlockAndPost(nativeWindow);
+}
