@@ -9,7 +9,5 @@ public class PdfDocument {
 
     /*package*/ long mNativeDocPtr;
 
-    /*package*/ Map<Integer, Long> mNativePagesPtr = new HashMap<>();
-
-    /*package*/ long mNativeWindowPtr;
+    /*package*/ final Map<Integer, Long> mNativePagesPtr = new HashMap<>();
 }

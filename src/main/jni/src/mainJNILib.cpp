@@ -160,19 +160,36 @@ JNI_FUNC(void, PdfiumCore, nativeClosePages)(JNI_ARGS, jlongArray pagesPtr){
     for(i = 0; i < length; i++){ closePageInternal(pages[i]); }
 }
 
+/*
 JNI_FUNC(jlong, PdfiumCore, nativeGetNativeWindow)(JNI_ARGS, jobject objSurface){
     ANativeWindow *nativeWindow = ANativeWindow_fromSurface(env, objSurface);
-    ANativeWindow_acquire(nativeWindow);
+    //ANativeWindow_acquire(nativeWindow);
     return reinterpret_cast<jlong>(nativeWindow);
 }
+*/
 
 static void renderPageInternal( FPDF_PAGE page,
                                 ANativeWindow_Buffer *windowBuffer,
+                                int dpi,
                                 int startX, int startY,
                                 int sizeHorizontal, int sizeVertical ){
 
     FPDF_BITMAP pdfBitmap = FPDFBitmap_CreateEx( sizeHorizontal, sizeVertical,
-                                                 4, windowBuffer->bits, (int)windowBuffer->stride);
+                                                 FPDFBitmap_BGRA,
+                                                 windowBuffer->bits, (int)(windowBuffer->stride) * 4);
+
+    LOGD("Page Width(point): %lf", FPDF_GetPageWidth(page));
+    LOGD("Page Height(point): %lf", FPDF_GetPageHeight(page));
+    LOGD("PDF Width: %d", FPDFBitmap_GetWidth(pdfBitmap));
+    LOGD("PDF Height: %d", FPDFBitmap_GetHeight(pdfBitmap));
+    LOGD("PDF Stride: %d", FPDFBitmap_GetStride(pdfBitmap));
+    LOGD("Dpi: %d", dpi);
+
+    int width = (int)(FPDF_GetPageWidth(page) * dpi / 72);
+    int height = (int)(FPDF_GetPageHeight(page) * dpi / 72);
+
+    FPDFBitmap_FillRect( pdfBitmap, 0, 0, sizeHorizontal, sizeVertical,
+                         255, 255, 255, 255);
 
     FPDF_RenderPageBitmap( pdfBitmap, page,
                            startX, startY,
@@ -180,14 +197,26 @@ static void renderPageInternal( FPDF_PAGE page,
                            0, FPDF_REVERSE_BYTE_ORDER );
 }
 
-JNI_FUNC(void, PdfiumCore, nativeRenderPage)(JNI_ARGS, jlong pagePtr, jlong nativeWindowPtr){
+JNI_FUNC(void, PdfiumCore, nativeRenderPage)(JNI_ARGS, jlong pagePtr, jobject objSurface, jint dpi){
+    ANativeWindow *nativeWindow = ANativeWindow_fromSurface(env, objSurface);
+    if(nativeWindow == NULL){
+        LOGE("native window pointer null");
+        return;
+    }
+    ANativeWindow_acquire(nativeWindow);
     FPDF_PAGE page = reinterpret_cast<FPDF_PAGE>(pagePtr);
-    ANativeWindow *nativeWindow = reinterpret_cast<ANativeWindow*>(nativeWindowPtr);
 
     if(page == NULL || nativeWindow == NULL){
         LOGE("Render page pointers invalid");
         return;
     }
+
+
+    ANativeWindow_setBuffersGeometry( nativeWindow,
+                                      ANativeWindow_getWidth(nativeWindow),
+                                      ANativeWindow_getHeight(nativeWindow),
+                                      WINDOW_FORMAT_RGBA_8888 );
+
 
     ANativeWindow_Buffer buffer;
     if( ANativeWindow_lock(nativeWindow, &buffer, NULL) != 0 ){
@@ -197,10 +226,15 @@ JNI_FUNC(void, PdfiumCore, nativeRenderPage)(JNI_ARGS, jlong pagePtr, jlong nati
 
     int height = (int)buffer.height;
     int width = (int)buffer.width;
+    LOGD("Height: %d", height);
+    LOGD("Width: %d", width);
+    LOGD("Stride: %d", (int)buffer.stride);
+    LOGD("Buffer format: %d", (int)buffer.format);
 
-    renderPageInternal(page, &buffer, 0, 0, width, height); //Render the whole page
+    renderPageInternal(page, &buffer, dpi, 0, 0, width, height); //Render the whole page
 
     ANativeWindow_unlockAndPost(nativeWindow);
+    ANativeWindow_release(nativeWindow);
 }
 
 }//extern C

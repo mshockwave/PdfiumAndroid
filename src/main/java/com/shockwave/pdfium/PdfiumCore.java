@@ -19,8 +19,9 @@ public class PdfiumCore {
     private native long[] nativeLoadPages(long docPtr, int fromIndex, int toIndex);
     private native void nativeClosePage(long pagePtr);
     private native void nativeClosePages(long[] pagesPtr);
-    private native long nativeGetNativeWindow(Surface surface);
-    private native void nativeRenderPage(long pagePtr, long nativeWindowPtr);
+    //private native long nativeGetNativeWindow(Surface surface);
+    //private native void nativeRenderPage(long pagePtr, long nativeWindowPtr);
+    private native void nativeRenderPage(long pagePtr, Surface surface, int dpi);
 
     private static final Class FD_CLASS = FileDescriptor.class;
     private static final String FD_FIELD_NAME = "descriptor";
@@ -52,8 +53,23 @@ public class PdfiumCore {
         return document;
     }
 
+    public long openPage(PdfDocument doc, int pageIndex){
+        long pagePtr = nativeLoadPage(doc.mNativeDocPtr, pageIndex);
+        doc.mNativePagesPtr.put(pageIndex, pagePtr);
+        return pagePtr;
+    }
+
+    public void renderPage(PdfDocument doc, Surface surface, int pageIndex, int densityDpi){
+        nativeRenderPage(doc.mNativePagesPtr.get(pageIndex), surface, densityDpi);
+    }
+
     public void closeDocument(PdfDocument doc){
-        /*TODO*/
+
+        for(Integer index : doc.mNativePagesPtr.keySet()){
+            nativeClosePage(doc.mNativePagesPtr.get(index));
+        }
+        doc.mNativePagesPtr.clear();
+
         nativeCloseDocument(doc.mNativeDocPtr);
     }
 }
