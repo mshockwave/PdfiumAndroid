@@ -1,6 +1,7 @@
 package com.shockwave.pdfium;
 
-import java.util.HashMap;
+import android.support.v4.util.ArrayMap;
+
 import java.util.Map;
 
 public class PdfDocument {
@@ -9,5 +10,5 @@ public class PdfDocument {
 
     /*package*/ long mNativeDocPtr;
 
-    /*package*/ final Map<Integer, Long> mNativePagesPtr = new HashMap<>();
+    /*package*/ final Map<Integer, Long> mNativePagesPtr = new ArrayMap<>();
 }
