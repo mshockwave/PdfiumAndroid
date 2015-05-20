@@ -1,7 +1,6 @@
-#Pdfium Android( < API Level 21) binding
+#Pdfium Android( >= API Level 10 ) binding
 Use pdfium library from AOSP  
 <h2>TODO:</h2>
 
  - Zooming
- - Sliding Pages (vertical and horizontal)
- - Other features normal PDF viewer would have
+ - Moving within page
