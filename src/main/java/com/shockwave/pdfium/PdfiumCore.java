@@ -19,6 +19,7 @@ public class PdfiumCore {
 
     private native long nativeOpenDocument(int fd);
     private native void nativeCloseDocument(long docPtr);
+    private native int nativeGetPageCount(long docPtr);
     private native long nativeLoadPage(long docPtr, int pageIndex);
     private native long[] nativeLoadPages(long docPtr, int fromIndex, int toIndex);
     private native void nativeClosePage(long pagePtr);
@@ -62,6 +63,7 @@ public class PdfiumCore {
 
         return document;
     }
+    public int getPageCount(PdfDocument doc){ return nativeGetPageCount(doc.mNativeDocPtr); }
 
     public long openPage(PdfDocument doc, int pageIndex){
         long pagePtr = nativeLoadPage(doc.mNativeDocPtr, pageIndex);

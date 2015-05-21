@@ -8,13 +8,18 @@ extern "C" {
 
 #include <android/native_window.h>
 #include <android/native_window_jni.h>
+#include <utils/Mutex.h>
+using namespace android;
 
 #include <fpdfview.h>
 
 
+static Mutex sLibraryLock;
+
 static int sLibraryReferenceCount = 0;
 
 static void initLibraryIfNeed(){
+    Mutex::Autolock lock(sLibraryLock);
     if(sLibraryReferenceCount == 0){
         LOGD("Init FPDF library");
         FPDF_InitLibrary(NULL);
@@ -23,6 +28,7 @@ static void initLibraryIfNeed(){
 }
 
 static void destroyLibraryIfNeed(){
+    Mutex::Autolock lock(sLibraryLock);
     sLibraryReferenceCount--;
     if(sLibraryReferenceCount == 0){
         LOGD("Destroy FPDF library");
@@ -105,6 +111,11 @@ JNI_FUNC(jlong, PdfiumCore, nativeOpenDocument)(JNI_ARGS, jint fd){
 
         return -1;
     }
+}
+
+JNI_FUNC(jint, PdfiumCore, nativeGetPageCount)(JNI_ARGS, jlong documentPtr){
+    DocumentFile *doc = reinterpret_cast<DocumentFile*>(documentPtr);
+    return (jint)FPDF_GetPageCount(doc->pdfDocument);
 }
 
 JNI_FUNC(void, PdfiumCore, nativeCloseDocument)(JNI_ARGS, jlong documentPtr){
