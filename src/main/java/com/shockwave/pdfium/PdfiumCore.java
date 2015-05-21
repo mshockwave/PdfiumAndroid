@@ -63,46 +63,57 @@ public class PdfiumCore {
 
         return document;
     }
-    public int getPageCount(PdfDocument doc){ return nativeGetPageCount(doc.mNativeDocPtr); }
+    public int getPageCount(PdfDocument doc){
+        synchronized (doc.Lock){
+            return nativeGetPageCount(doc.mNativeDocPtr);
+        }
+    }
 
     public long openPage(PdfDocument doc, int pageIndex){
-        long pagePtr = nativeLoadPage(doc.mNativeDocPtr, pageIndex);
-        doc.mNativePagesPtr.put(pageIndex, pagePtr);
-        return pagePtr;
+        synchronized (doc.Lock){
+            long pagePtr = nativeLoadPage(doc.mNativeDocPtr, pageIndex);
+            doc.mNativePagesPtr.put(pageIndex, pagePtr);
+            return pagePtr;
+        }
     }
     public long[] openPage(PdfDocument doc, int fromIndex, int toIndex){
-        long[] pagesPtr = nativeLoadPages(doc.mNativeDocPtr, fromIndex, toIndex);
-        int pageIndex = fromIndex;
-        for(long page : pagesPtr){
-            if(pageIndex > toIndex) break;
-            doc.mNativePagesPtr.put(pageIndex, page);
-            pageIndex++;
-        }
+        synchronized (doc.Lock){
+            long[] pagesPtr = nativeLoadPages(doc.mNativeDocPtr, fromIndex, toIndex);
+            int pageIndex = fromIndex;
+            for(long page : pagesPtr){
+                if(pageIndex > toIndex) break;
+                doc.mNativePagesPtr.put(pageIndex, page);
+                pageIndex++;
+            }
 
-        return pagesPtr;
+            return pagesPtr;
+        }
     }
 
     public void renderPage(PdfDocument doc, Surface surface, int pageIndex){
-        try{
+        synchronized (doc.Lock){
+            try{
             /*Get real time density*/
-            int dpi = mContext.getResources().getDisplayMetrics().densityDpi;
-            nativeRenderPage(doc.mNativePagesPtr.get(pageIndex), surface, dpi);
+                int dpi = mContext.getResources().getDisplayMetrics().densityDpi;
+                nativeRenderPage(doc.mNativePagesPtr.get(pageIndex), surface, dpi);
 
-        }catch(NullPointerException e){
-            Log.e(TAG, "mContext may be null");
-        }catch(Exception e){
-            Log.e(TAG, "Exception throw from native");
-            e.printStackTrace();
+            }catch(NullPointerException e){
+                Log.e(TAG, "mContext may be null");
+            }catch(Exception e){
+                Log.e(TAG, "Exception throw from native");
+                e.printStackTrace();
+            }
         }
     }
 
     public void closeDocument(PdfDocument doc){
+        synchronized (doc.Lock){
+            for(Integer index : doc.mNativePagesPtr.keySet()){
+                nativeClosePage(doc.mNativePagesPtr.get(index));
+            }
+            doc.mNativePagesPtr.clear();
 
-        for(Integer index : doc.mNativePagesPtr.keySet()){
-            nativeClosePage(doc.mNativePagesPtr.get(index));
+            nativeCloseDocument(doc.mNativeDocPtr);
         }
-        doc.mNativePagesPtr.clear();
-
-        nativeCloseDocument(doc.mNativeDocPtr);
     }
 }

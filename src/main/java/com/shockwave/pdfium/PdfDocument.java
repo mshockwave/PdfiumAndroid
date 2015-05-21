@@ -5,6 +5,7 @@ import android.support.v4.util.ArrayMap;
 import java.util.Map;
 
 public class PdfDocument {
+    public final Object Lock = new Object();
 
     /*package*/ PdfDocument(){}
 
