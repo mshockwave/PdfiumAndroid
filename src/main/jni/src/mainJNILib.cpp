@@ -172,59 +172,58 @@ JNI_FUNC(void, PdfiumCore, nativeClosePages)(JNI_ARGS, jlongArray pagesPtr){
     for(i = 0; i < length; i++){ closePageInternal(pages[i]); }
 }
 
-JNI_FUNC(jint, PdfiumCore, nativeGetPageWidth)(JNI_ARGS, jlong pagePtr){
+JNI_FUNC(jint, PdfiumCore, nativeGetPageWidthPixel)(JNI_ARGS, jlong pagePtr, jint dpi){
     FPDF_PAGE page = reinterpret_cast<FPDF_PAGE>(pagePtr);
-    return (jint)FPDF_GetPageWidth(page);
+    return (jint)(FPDF_GetPageWidth(page) * dpi / 72);
 }
-JNI_FUNC(jint, PdfiumCore, nativeGetPageHeight)(JNI_ARGS, jlong pagePtr){
+JNI_FUNC(jint, PdfiumCore, nativeGetPageHeightPixel)(JNI_ARGS, jlong pagePtr, jint dpi){
     FPDF_PAGE page = reinterpret_cast<FPDF_PAGE>(pagePtr);
-    return (jint)FPDF_GetPageHeight(page);
+    return (jint)(FPDF_GetPageHeight(page) * dpi / 72);
 }
-
-/*
-JNI_FUNC(jlong, PdfiumCore, nativeGetNativeWindow)(JNI_ARGS, jobject objSurface){
-    ANativeWindow *nativeWindow = ANativeWindow_fromSurface(env, objSurface);
-    //ANativeWindow_acquire(nativeWindow);
-    return reinterpret_cast<jlong>(nativeWindow);
-}
-*/
 
 static void renderPageInternal( FPDF_PAGE page,
                                 ANativeWindow_Buffer *windowBuffer,
-                                int dpi,
                                 int startX, int startY,
-                                int sizeHorizontal, int sizeVertical ){
+                                int canvasHorSize, int canvasVerSize,
+                                int drawSizeHor, int drawSizeVer){
 
-    FPDF_BITMAP pdfBitmap = FPDFBitmap_CreateEx( sizeHorizontal, sizeVertical,
+    FPDF_BITMAP pdfBitmap = FPDFBitmap_CreateEx( canvasHorSize, canvasVerSize,
                                                  FPDFBitmap_BGRA,
                                                  windowBuffer->bits, (int)(windowBuffer->stride) * 4);
 
-    LOGD("Page Width(point): %lf", FPDF_GetPageWidth(page));
-    LOGD("Page Height(point): %lf", FPDF_GetPageHeight(page));
-    LOGD("PDF Width: %d", FPDFBitmap_GetWidth(pdfBitmap));
-    LOGD("PDF Height: %d", FPDFBitmap_GetHeight(pdfBitmap));
-    LOGD("PDF Stride: %d", FPDFBitmap_GetStride(pdfBitmap));
-    LOGD("Dpi: %d", dpi);
+    LOGD("Start X: %d", startX);
+    LOGD("Start Y: %d", startY);
+    LOGD("Canvas Hor: %d", canvasHorSize);
+    LOGD("Canvas Ver: %d", canvasVerSize);
+    LOGD("Draw Hor: %d", drawSizeHor);
+    LOGD("Draw Ver: %d", drawSizeVer);
 
-    int width = (int)(FPDF_GetPageWidth(page) * dpi / 72);
-    int height = (int)(FPDF_GetPageHeight(page) * dpi / 72);
+    if(drawSizeHor < canvasHorSize || drawSizeVer < canvasVerSize){
+        FPDFBitmap_FillRect( pdfBitmap, 0, 0, canvasHorSize, canvasVerSize,
+                             0x84, 0x84, 0x84, 255); //Gray
+    }
 
-    FPDFBitmap_FillRect( pdfBitmap, 0, 0, sizeHorizontal, sizeVertical,
-                         255, 255, 255, 255);
+    int baseHorSize = (canvasHorSize < drawSizeHor)? canvasHorSize : drawSizeHor;
+    int baseVerSize = (canvasVerSize < drawSizeVer)? canvasVerSize : drawSizeVer;
+    int baseX = (startX < 0)? 0 : startX;
+    int baseY = (startY < 0)? 0 : startY;
+    FPDFBitmap_FillRect( pdfBitmap, baseX, baseY, baseHorSize, baseVerSize,
+                         255, 255, 255, 255); //White
 
     FPDF_RenderPageBitmap( pdfBitmap, page,
                            startX, startY,
-                           sizeHorizontal, sizeVertical,
+                           drawSizeHor, drawSizeVer,
                            0, FPDF_REVERSE_BYTE_ORDER );
 }
 
-JNI_FUNC(void, PdfiumCore, nativeRenderPage)(JNI_ARGS, jlong pagePtr, jobject objSurface, jint dpi){
+JNI_FUNC(void, PdfiumCore, nativeRenderPage)(JNI_ARGS, jlong pagePtr, jobject objSurface,
+                                             jint dpi, jint startX, jint startY,
+                                             jint drawSizeHor, jint drawSizeVer){
     ANativeWindow *nativeWindow = ANativeWindow_fromSurface(env, objSurface);
     if(nativeWindow == NULL){
         LOGE("native window pointer null");
         return;
     }
-    ANativeWindow_acquire(nativeWindow);
     FPDF_PAGE page = reinterpret_cast<FPDF_PAGE>(pagePtr);
 
     if(page == NULL || nativeWindow == NULL){
@@ -247,18 +246,13 @@ JNI_FUNC(void, PdfiumCore, nativeRenderPage)(JNI_ARGS, jlong pagePtr, jobject ob
         return;
     }
 
-    int height = (int)buffer.height;
-    int width = (int)buffer.width;
-    LOGD("Height: %d", height);
-    LOGD("Width: %d", width);
-    LOGD("Stride: %d", (int)buffer.stride);
-    LOGD("Buffer format: %d", (int)buffer.format);
-
-    renderPageInternal(page, &buffer, dpi, 0, 0, width, height); //Render the whole page
+    renderPageInternal(page, &buffer,
+                       (int)startX, (int)startY,
+                       buffer.width, buffer.height,
+                       (int)drawSizeHor, (int)drawSizeVer);
 
     ANativeWindow_unlockAndPost(nativeWindow);
     ANativeWindow_release(nativeWindow);
-    ANativeWindow_release(nativeWindow); //Release twice!! Since we invoked acquire before lock
 }
 
 }//extern C

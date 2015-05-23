@@ -1,14 +1,11 @@
 package com.shockwave.pdfium;
 
 import android.content.Context;
-import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Surface;
-import android.view.WindowManager;
 
 import java.io.FileDescriptor;
 import java.lang.reflect.Field;
-import java.util.List;
 
 public class PdfiumCore {
     private static final String TAG = PdfiumCore.class.getName();
@@ -24,20 +21,22 @@ public class PdfiumCore {
     private native long[] nativeLoadPages(long docPtr, int fromIndex, int toIndex);
     private native void nativeClosePage(long pagePtr);
     private native void nativeClosePages(long[] pagesPtr);
-    private native int nativeGetPageWidth(long pagePtr);
-    private native int nativeGetPageHeight(long pagePtr);
+    private native int nativeGetPageWidthPixel(long pagePtr, int dpi);
+    private native int nativeGetPageHeightPixel(long pagePtr, int dpi);
     //private native long nativeGetNativeWindow(Surface surface);
     //private native void nativeRenderPage(long pagePtr, long nativeWindowPtr);
-    private native void nativeRenderPage(long pagePtr, Surface surface, int dpi);
+    private native void nativeRenderPage(long pagePtr, Surface surface, int dpi,
+                                         int startX, int startY,
+                                         int drawSizeHor, int drawSizeVer);
 
     private static final Class FD_CLASS = FileDescriptor.class;
     private static final String FD_FIELD_NAME = "descriptor";
     private static Field mFdField = null;
 
-    private Context mContext;
+    private int mCurrentDpi;
 
     public PdfiumCore(Context ctx){
-        mContext = ctx;
+        mCurrentDpi = ctx.getResources().getDisplayMetrics().densityDpi;
     }
 
     public static int getNumFd(FileDescriptor fdObj){
@@ -95,7 +94,7 @@ public class PdfiumCore {
         synchronized (doc.Lock){
             Long pagePtr;
             if( (pagePtr = doc.mNativePagesPtr.get(index)) != null ){
-                return nativeGetPageWidth(pagePtr);
+                return nativeGetPageWidthPixel(pagePtr, mCurrentDpi);
             }
             return 0;
         }
@@ -104,19 +103,19 @@ public class PdfiumCore {
         synchronized (doc.Lock){
             Long pagePtr;
             if( (pagePtr = doc.mNativePagesPtr.get(index)) != null ){
-                return nativeGetPageHeight(pagePtr);
+                return nativeGetPageHeightPixel(pagePtr, mCurrentDpi);
             }
             return 0;
         }
     }
 
-    public void renderPage(PdfDocument doc, Surface surface, int pageIndex){
+    public void renderPage(PdfDocument doc, Surface surface, int pageIndex,
+                           int startX, int startY, int drawSizeX, int drawSizeY){
         synchronized (doc.Lock){
             try{
-            /*Get real time density*/
-                int dpi = mContext.getResources().getDisplayMetrics().densityDpi;
-                nativeRenderPage(doc.mNativePagesPtr.get(pageIndex), surface, dpi);
-
+                //nativeRenderPage(doc.mNativePagesPtr.get(pageIndex), surface, mCurrentDpi);
+                nativeRenderPage(doc.mNativePagesPtr.get(pageIndex), surface, mCurrentDpi,
+                                    startX, startY, drawSizeX, drawSizeY);
             }catch(NullPointerException e){
                 Log.e(TAG, "mContext may be null");
                 e.printStackTrace();
