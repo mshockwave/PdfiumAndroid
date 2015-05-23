@@ -24,6 +24,8 @@ public class PdfiumCore {
     private native long[] nativeLoadPages(long docPtr, int fromIndex, int toIndex);
     private native void nativeClosePage(long pagePtr);
     private native void nativeClosePages(long[] pagesPtr);
+    private native int nativeGetPageWidth(long pagePtr);
+    private native int nativeGetPageHeight(long pagePtr);
     //private native long nativeGetNativeWindow(Surface surface);
     //private native void nativeRenderPage(long pagePtr, long nativeWindowPtr);
     private native void nativeRenderPage(long pagePtr, Surface surface, int dpi);
@@ -89,6 +91,24 @@ public class PdfiumCore {
             return pagesPtr;
         }
     }
+    public int getPageWidth(PdfDocument doc, int index){
+        synchronized (doc.Lock){
+            Long pagePtr;
+            if( (pagePtr = doc.mNativePagesPtr.get(index)) != null ){
+                return nativeGetPageWidth(pagePtr);
+            }
+            return 0;
+        }
+    }
+    public int getPageHeight(PdfDocument doc, int index){
+        synchronized (doc.Lock){
+            Long pagePtr;
+            if( (pagePtr = doc.mNativePagesPtr.get(index)) != null ){
+                return nativeGetPageHeight(pagePtr);
+            }
+            return 0;
+        }
+    }
 
     public void renderPage(PdfDocument doc, Surface surface, int pageIndex){
         synchronized (doc.Lock){
@@ -99,6 +119,7 @@ public class PdfiumCore {
 
             }catch(NullPointerException e){
                 Log.e(TAG, "mContext may be null");
+                e.printStackTrace();
             }catch(Exception e){
                 Log.e(TAG, "Exception throw from native");
                 e.printStackTrace();

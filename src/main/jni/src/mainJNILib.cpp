@@ -4,6 +4,7 @@ extern "C" {
     #include <unistd.h>
     #include <sys/mman.h>
     #include <sys/stat.h>
+    #include <string.h>
 }
 
 #include <android/native_window.h>
@@ -171,6 +172,15 @@ JNI_FUNC(void, PdfiumCore, nativeClosePages)(JNI_ARGS, jlongArray pagesPtr){
     for(i = 0; i < length; i++){ closePageInternal(pages[i]); }
 }
 
+JNI_FUNC(jint, PdfiumCore, nativeGetPageWidth)(JNI_ARGS, jlong pagePtr){
+    FPDF_PAGE page = reinterpret_cast<FPDF_PAGE>(pagePtr);
+    return (jint)FPDF_GetPageWidth(page);
+}
+JNI_FUNC(jint, PdfiumCore, nativeGetPageHeight)(JNI_ARGS, jlong pagePtr){
+    FPDF_PAGE page = reinterpret_cast<FPDF_PAGE>(pagePtr);
+    return (jint)FPDF_GetPageHeight(page);
+}
+
 /*
 JNI_FUNC(jlong, PdfiumCore, nativeGetNativeWindow)(JNI_ARGS, jobject objSurface){
     ANativeWindow *nativeWindow = ANativeWindow_fromSurface(env, objSurface);
@@ -214,7 +224,6 @@ JNI_FUNC(void, PdfiumCore, nativeRenderPage)(JNI_ARGS, jlong pagePtr, jobject ob
         LOGE("native window pointer null");
         return;
     }
-    ANativeWindow_acquire(nativeWindow);
     FPDF_PAGE page = reinterpret_cast<FPDF_PAGE>(pagePtr);
 
     if(page == NULL || nativeWindow == NULL){
@@ -230,8 +239,9 @@ JNI_FUNC(void, PdfiumCore, nativeRenderPage)(JNI_ARGS, jlong pagePtr, jobject ob
 
 
     ANativeWindow_Buffer buffer;
-    if( ANativeWindow_lock(nativeWindow, &buffer, NULL) != 0 ){
-        LOGE("Locking native window failed");
+    int ret;
+    if( (ret = ANativeWindow_lock(nativeWindow, &buffer, NULL)) != 0 ){
+        LOGE("Locking native window failed: %s", strerror(ret * -1));
         return;
     }
 
