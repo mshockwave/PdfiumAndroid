@@ -224,6 +224,7 @@ JNI_FUNC(void, PdfiumCore, nativeRenderPage)(JNI_ARGS, jlong pagePtr, jobject ob
         LOGE("native window pointer null");
         return;
     }
+    ANativeWindow_acquire(nativeWindow);
     FPDF_PAGE page = reinterpret_cast<FPDF_PAGE>(pagePtr);
 
     if(page == NULL || nativeWindow == NULL){
@@ -231,12 +232,13 @@ JNI_FUNC(void, PdfiumCore, nativeRenderPage)(JNI_ARGS, jlong pagePtr, jobject ob
         return;
     }
 
-
-    ANativeWindow_setBuffersGeometry( nativeWindow,
-                                      ANativeWindow_getWidth(nativeWindow),
-                                      ANativeWindow_getHeight(nativeWindow),
-                                      WINDOW_FORMAT_RGBA_8888 );
-
+    if(ANativeWindow_getFormat(nativeWindow) != WINDOW_FORMAT_RGBA_8888){
+        LOGD("Set format to RGBA_8888");
+        ANativeWindow_setBuffersGeometry( nativeWindow,
+                                          ANativeWindow_getWidth(nativeWindow),
+                                          ANativeWindow_getHeight(nativeWindow),
+                                          WINDOW_FORMAT_RGBA_8888 );
+    }
 
     ANativeWindow_Buffer buffer;
     int ret;
@@ -256,6 +258,7 @@ JNI_FUNC(void, PdfiumCore, nativeRenderPage)(JNI_ARGS, jlong pagePtr, jobject ob
 
     ANativeWindow_unlockAndPost(nativeWindow);
     ANativeWindow_release(nativeWindow);
+    ANativeWindow_release(nativeWindow); //Release twice!! Since we invoked acquire before lock
 }
 
 }//extern C
