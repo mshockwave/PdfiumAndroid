@@ -36,6 +36,15 @@ dependencies {
 version = '1.0.0'
 group = 'com.github.mshockwave'
 
+gradle.taskGraph.whenReady { taskGraph ->
+    Properties properties = new Properties()
+    properties.load(project.rootProject.file('local.properties').newDataInputStream())
+
+    allprojects { ext."signing.keyId" = properties.get("signing.ketId") }
+    allprojects { ext."signing.password" = properties.get("signing.password") }
+    allprojects { ext."signing.secretKeyRingFile" = properties.get("signing.secretKeyRingFile") }
+}
+
 configurations {
     archives {
         extendsFrom configurations.default
@@ -43,7 +52,7 @@ configurations {
 }
 
 signing {
-    required { has("release") && gradle.taskGraph.hasTask("uploadArchives") }
+    //required { gradle.taskGraph.hasTask("uploadArchives") }
     sign configurations.archives
 }
 
