@@ -1,6 +1,7 @@
 package com.shockwave.pdfium;
 
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.util.Log;
 import android.view.Surface;
 
@@ -25,9 +26,7 @@ public class PdfiumCore {
     private native int nativeGetPageHeightPixel(long pagePtr, int dpi);
     //private native long nativeGetNativeWindow(Surface surface);
     //private native void nativeRenderPage(long pagePtr, long nativeWindowPtr);
-    private native void nativeRenderPage(long pagePtr, Surface surface, int dpi,
-                                         int startX, int startY,
-                                         int drawSizeHor, int drawSizeVer);
+    private native void nativeRenderPage(long pagePtr, Bitmap bitmap);
 
     private static final Class FD_CLASS = FileDescriptor.class;
     private static final String FD_FIELD_NAME = "descriptor";
@@ -109,13 +108,10 @@ public class PdfiumCore {
         }
     }
 
-    public void renderPage(PdfDocument doc, Surface surface, int pageIndex,
-                           int startX, int startY, int drawSizeX, int drawSizeY){
+    public void renderPage(PdfDocument doc, Bitmap bitmap, int pageIndex){
         synchronized (doc.Lock){
             try{
-                //nativeRenderPage(doc.mNativePagesPtr.get(pageIndex), surface, mCurrentDpi);
-                nativeRenderPage(doc.mNativePagesPtr.get(pageIndex), surface, mCurrentDpi,
-                                    startX, startY, drawSizeX, drawSizeY);
+                nativeRenderPage(doc.mNativePagesPtr.get(pageIndex), bitmap);
             }catch(NullPointerException e){
                 Log.e(TAG, "mContext may be null");
                 e.printStackTrace();

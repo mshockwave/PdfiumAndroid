@@ -1,14 +1,14 @@
 #include "util.hpp"
 
 extern "C" {
+    #include <stdint.h>
     #include <unistd.h>
     #include <sys/mman.h>
     #include <sys/stat.h>
     #include <string.h>
 }
 
-#include <android/native_window.h>
-#include <android/native_window_jni.h>
+#include <android/bitmap.h>
 #include <utils/Mutex.h>
 using namespace android;
 
@@ -182,77 +182,72 @@ JNI_FUNC(jint, PdfiumCore, nativeGetPageHeightPixel)(JNI_ARGS, jlong pagePtr, ji
 }
 
 static void renderPageInternal( FPDF_PAGE page,
-                                ANativeWindow_Buffer *windowBuffer,
-                                int startX, int startY,
-                                int canvasHorSize, int canvasVerSize,
-                                int drawSizeHor, int drawSizeVer){
+                                void *renderBuffer,
+                                uint32_t horSize, uint32_t verSize,
+                                uint32_t stride, int32_t format){
 
-    FPDF_BITMAP pdfBitmap = FPDFBitmap_CreateEx( canvasHorSize, canvasVerSize,
-                                                 FPDFBitmap_BGRA,
-                                                 windowBuffer->bits, (int)(windowBuffer->stride) * 4);
+    int renderFormat, bytePerPixel;
+    switch(format){
+        case ANDROID_BITMAP_FORMAT_RGBA_8888:
+            renderFormat = FPDFBitmap_BGRA;
+            bytePerPixel = 4;
+            break;
 
-    LOGD("Start X: %d", startX);
-    LOGD("Start Y: %d", startY);
-    LOGD("Canvas Hor: %d", canvasHorSize);
-    LOGD("Canvas Ver: %d", canvasVerSize);
-    LOGD("Draw Hor: %d", drawSizeHor);
-    LOGD("Draw Ver: %d", drawSizeVer);
+        case ANDROID_BITMAP_FORMAT_RGB_565:
+            renderFormat = FPDFBitmap_BGR;
+            bytePerPixel = 2;
+            break;
 
-    if(drawSizeHor < canvasHorSize || drawSizeVer < canvasVerSize){
-        FPDFBitmap_FillRect( pdfBitmap, 0, 0, canvasHorSize, canvasVerSize,
-                             0x84, 0x84, 0x84, 255); //Gray
+        default:
+            renderFormat = FPDFBitmap_BGRA;
+            bytePerPixel = 4;
     }
 
-    int baseHorSize = (canvasHorSize < drawSizeHor)? canvasHorSize : drawSizeHor;
-    int baseVerSize = (canvasVerSize < drawSizeVer)? canvasVerSize : drawSizeVer;
-    int baseX = (startX < 0)? 0 : startX;
-    int baseY = (startY < 0)? 0 : startY;
-    FPDFBitmap_FillRect( pdfBitmap, baseX, baseY, baseHorSize, baseVerSize,
+    FPDF_BITMAP pdfBitmap = FPDFBitmap_CreateEx( horSize, verSize,
+                                                 renderFormat,
+                                                 renderBuffer, (stride * bytePerPixel) );
+
+    FPDFBitmap_FillRect( pdfBitmap, 0, 0, horSize, verSize,
                          255, 255, 255, 255); //White
 
     FPDF_RenderPageBitmap( pdfBitmap, page,
-                           startX, startY,
-                           drawSizeHor, drawSizeVer,
+                           0, 0,
+                           horSize, verSize,
                            0, FPDF_REVERSE_BYTE_ORDER );
 }
 
-JNI_FUNC(void, PdfiumCore, nativeRenderPage)(JNI_ARGS, jlong pagePtr, jobject objSurface,
-                                             jint dpi, jint startX, jint startY,
-                                             jint drawSizeHor, jint drawSizeVer){
-    ANativeWindow *nativeWindow = ANativeWindow_fromSurface(env, objSurface);
-    if(nativeWindow == NULL){
-        LOGE("native window pointer null");
-        return;
-    }
+JNI_FUNC(void, PdfiumCore, nativeRenderPage)(JNI_ARGS, jlong pagePtr, jobject objBitmap){
+
     FPDF_PAGE page = reinterpret_cast<FPDF_PAGE>(pagePtr);
-
-    if(page == NULL || nativeWindow == NULL){
-        LOGE("Render page pointers invalid");
+    if(page == NULL){
+        LOGE("nativeRenderPage error fetching page reference");
         return;
     }
 
-    if(ANativeWindow_getFormat(nativeWindow) != WINDOW_FORMAT_RGBA_8888){
-        LOGD("Set format to RGBA_8888");
-        ANativeWindow_setBuffersGeometry( nativeWindow,
-                                          ANativeWindow_getWidth(nativeWindow),
-                                          ANativeWindow_getHeight(nativeWindow),
-                                          WINDOW_FORMAT_RGBA_8888 );
-    }
-
-    ANativeWindow_Buffer buffer;
     int ret;
-    if( (ret = ANativeWindow_lock(nativeWindow, &buffer, NULL)) != 0 ){
-        LOGE("Locking native window failed: %s", strerror(ret * -1));
+    /*Fetch bitmap info*/
+    AndroidBitmapInfo bitmapInfo;
+    if( (ret = AndroidBitmap_getInfo(env, objBitmap, &bitmapInfo)) < 0){
+        LOGE("Fetching bitmap info failed: %s", strerror(ret * -1));
         return;
     }
 
-    renderPageInternal(page, &buffer,
-                       (int)startX, (int)startY,
-                       buffer.width, buffer.height,
-                       (int)drawSizeHor, (int)drawSizeVer);
+    uint32_t bitmapWidth = bitmapInfo.width,
+             bitmapHeight = bitmapInfo.height,
+             bitmapStride = bitmapInfo.stride;
+    int32_t bitmapFormat = bitmapInfo.format;
 
-    ANativeWindow_unlockAndPost(nativeWindow);
-    ANativeWindow_release(nativeWindow);
+    void *buffer = NULL;
+    if( (ret = AndroidBitmap_lockPixels(env, objBitmap, &buffer)) < 0 ){
+        LOGE("Locking bitmap error: %s", strerror(ret * -1));
+        return;
+    }
+
+    renderPageInternal(page, buffer,
+                       bitmapWidth, bitmapHeight,
+                       bitmapStride, bitmapFormat);
+
+    AndroidBitmap_unlockPixels(env, objBitmap);
 }
 
 }//extern C
