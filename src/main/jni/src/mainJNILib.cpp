@@ -203,9 +203,13 @@ static void renderPageInternal( FPDF_PAGE page,
             bytePerPixel = 4;
     }
 
+    LOGD("Create new FPDF bitmap");
     FPDF_BITMAP pdfBitmap = FPDFBitmap_CreateEx( horSize, verSize,
                                                  renderFormat,
-                                                 renderBuffer, (stride * bytePerPixel) );
+                                                 renderBuffer, stride );
+    LOGD("Last error: %lu", FPDF_GetLastError());
+    LOGD("Width: %d", FPDFBitmap_GetWidth(pdfBitmap));
+    LOGD("Height: %d", FPDFBitmap_GetHeight(pdfBitmap));
 
     FPDFBitmap_FillRect( pdfBitmap, 0, 0, horSize, verSize,
                          255, 255, 255, 255); //White
@@ -214,6 +218,8 @@ static void renderPageInternal( FPDF_PAGE page,
                            0, 0,
                            horSize, verSize,
                            0, FPDF_REVERSE_BYTE_ORDER );
+
+    LOGD("Last error: %lu", FPDF_GetLastError());
 }
 
 JNI_FUNC(void, PdfiumCore, nativeRenderPage)(JNI_ARGS, jlong pagePtr, jobject objBitmap){
@@ -225,6 +231,13 @@ JNI_FUNC(void, PdfiumCore, nativeRenderPage)(JNI_ARGS, jlong pagePtr, jobject ob
     }
 
     int ret;
+
+    void *buffer = NULL;
+    if( (ret = AndroidBitmap_lockPixels(env, objBitmap, &buffer)) < 0 ){
+        LOGE("Locking bitmap error: %s", strerror(ret * -1));
+        return;
+    }
+
     /*Fetch bitmap info*/
     AndroidBitmapInfo bitmapInfo;
     if( (ret = AndroidBitmap_getInfo(env, objBitmap, &bitmapInfo)) < 0){
@@ -236,12 +249,6 @@ JNI_FUNC(void, PdfiumCore, nativeRenderPage)(JNI_ARGS, jlong pagePtr, jobject ob
              bitmapHeight = bitmapInfo.height,
              bitmapStride = bitmapInfo.stride;
     int32_t bitmapFormat = bitmapInfo.format;
-
-    void *buffer = NULL;
-    if( (ret = AndroidBitmap_lockPixels(env, objBitmap, &buffer)) < 0 ){
-        LOGE("Locking bitmap error: %s", strerror(ret * -1));
-        return;
-    }
 
     renderPageInternal(page, buffer,
                        bitmapWidth, bitmapHeight,
