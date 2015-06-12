@@ -12,7 +12,10 @@ extern "C" {
 #include <utils/Mutex.h>
 using namespace android;
 
+
 #include <fpdfview.h>
+#include <fpdfdoc.h>
+#include <fpdftext.h>
 
 
 static Mutex sLibraryLock;
@@ -254,5 +257,58 @@ JNI_FUNC(void, PdfiumCore, nativeRenderPage)(JNI_ARGS, jlong pagePtr, jobject ob
     ANativeWindow_unlockAndPost(nativeWindow);
     ANativeWindow_release(nativeWindow);
 }
+
+
+// Text Module API
+
+JNI_FUNC(jint*, PdfiumCore, textLoadPage)(JNI_ARGS, jlong pagePtr){
+	FPDF_PAGE page = reinterpret_cast<FPDF_PAGE>(pagePtr);
+	return (jint*)FPDFText_LoadPage(page);
+}
+
+JNI_FUNC(jint*, PdfiumCore, textFindStart)(JNI_ARGS, jint textpage, jstring findwhat, jlong flag, jint startindex){
+
+    int length = env->GetStringLength(findwhat);
+    const FPDF_WCHAR* wcFind = env->GetStringChars(findwhat, 0);
+
+    FPDF_TEXTPAGE pTextPage = reinterpret_cast<FPDF_TEXTPAGE>(textpage);
+    FPDF_SCHHANDLE searchHandle = NULL;
+    LOGI("wcFind is %x %x %x %x",wcFind[0],wcFind[1],wcFind[2],wcFind[3]);
+
+    searchHandle = FPDFText_FindStart(pTextPage,(FPDF_WCHAR*)wcFind, flag, startindex);
+
+    if(searchHandle == NULL){
+        LOGE("FPDFTextFindStart: FPDFTextFindStart did not return success");
+    }
+
+    return (jint*)searchHandle;
+}
+
+JNI_FUNC(jint, PdfiumCore, textGetSchResultIndex)(JNI_ARGS, jint searchHandle){
+	FPDF_SCHHANDLE pSearchHandle = reinterpret_cast<FPDF_SCHHANDLE>(searchHandle);
+	int index = -1;
+	index = FPDFText_GetSchResultIndex(pSearchHandle);
+	if(index == -1){
+        LOGE("FPDFTextGetSchResultIndex: FPDFTextGetSchResultIndex did not return success");
+    }
+	return index;
+}
+
+JNI_FUNC(jint, PdfiumCore, textGetSchCount)(JNI_ARGS, jint searchHandle){
+	FPDF_SCHHANDLE pSearchHandle = reinterpret_cast<FPDF_SCHHANDLE>(searchHandle);
+	int count = -1;
+	count = FPDFText_GetSchCount(pSearchHandle);
+	if(count == -1){
+        LOGE("FPDFTextGetSchCount: FPDFTextGetSchCount did not return success");
+    }
+	return count;
+}
+
+JNI_FUNC(void, PdfiumCore, textFindClose)(JNI_ARGS, jint searchHandle){
+	FPDF_SCHHANDLE pSearchHandle = reinterpret_cast<FPDF_SCHHANDLE>(searchHandle);
+	FPDFText_FindClose(pSearchHandle);
+}
+
+
 
 }//extern C
