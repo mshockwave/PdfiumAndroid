@@ -31,12 +31,15 @@ public class PdfiumCore {
 
     // Text Module
     public static native int textLoadPage(long page);
-    public static native int textFindStart(int textPage, String findWhat,
-                                           long flags, int startIndex);
+    public static native int textFindStart(int textPage, String findWhat, long flags, int startIndex);
     public static native int textFindNext(int handle);
     public static native int textFindPrev(int handle);
     public static native int textGetSchResultIndex(int handle);
     public static native int textGetSchCount(int handle);
+    public static native String textGetText(int textPage, int start, int count);
+    public static native RectangleF textGetRect(int textPage, int index);
+    public static native int textCountRects(int textPage, int start, int count);
+    public static native int textCountChars(int textPage);
     public static native void textFindClose(int handle);
 
     private static final Class FD_CLASS = FileDescriptor.class;
@@ -44,6 +47,26 @@ public class PdfiumCore {
     private static Field mFdField = null;
 
     private int mCurrentDpi;
+
+
+    public class Rectangle {
+        public int left;
+        public int top;
+        public int right;
+        public int bottom;
+
+    }
+
+    public class RectangleF {
+        public float left;
+        public float top;
+        public float right;
+        public float bottom;
+    }
+
+    public class PointF {
+        public float x, y;
+    }
 
     public PdfiumCore(Context ctx){
         mCurrentDpi = ctx.getResources().getDisplayMetrics().densityDpi;
