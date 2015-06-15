@@ -267,6 +267,11 @@ JNI_FUNC(jint*, PdfiumCore, textLoadPage)(JNI_ARGS, jlong pagePtr){
 	return (jint*)FPDFText_LoadPage(page);
 }
 
+JNI_FUNC(void, PdfiumCore, textClosePage)(JNI_ARGS, jint textpage){
+	FPDF_TEXTPAGE pTextPage = reinterpret_cast<FPDF_TEXTPAGE>(textpage);
+	FPDFText_ClosePage(pTextPage);
+}
+
 JNI_FUNC(jint*, PdfiumCore, textFindStart)(JNI_ARGS, jint textpage, jstring findwhat, jlong flag, jint startindex){
 
     int length = env->GetStringLength(findwhat);
@@ -283,6 +288,15 @@ JNI_FUNC(jint*, PdfiumCore, textFindStart)(JNI_ARGS, jint textpage, jstring find
     }
 
     return (jint*)searchHandle;
+}
+
+JNI_FUNC(jint, PdfiumCore, textFindNext)(JNI_ARGS, jint searchHandle){
+
+    FPDF_SCHHANDLE pSearchHandle = reinterpret_cast<FPDF_SCHHANDLE>(searchHandle);
+	FPDF_BOOL isMatch = 0;
+	isMatch = FPDFText_FindNext(pSearchHandle);
+	LOGD("FPDFText_FindNext Match is %x",isMatch);
+	return isMatch;
 }
 
 // TODO: incomplete
