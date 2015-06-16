@@ -3,6 +3,8 @@ package com.shockwave.pdfium;
 import android.content.Context;
 import android.util.Log;
 import android.view.Surface;
+import android.graphics.RectF;
+import android.graphics.PointF;
 
 import java.io.FileDescriptor;
 import java.lang.reflect.Field;
@@ -29,11 +31,26 @@ public class PdfiumCore {
                                          int startX, int startY,
                                          int drawSizeHor, int drawSizeVer);
 
+    // Text Module
+    public static native int textLoadPage(long page);
+    public static native int textFindStart(int textPage, String findWhat, long flags, int startIndex);
+    public static native int textFindNext(int handle);
+    public static native int textFindPrev(int handle);
+    public static native int textGetSchResultIndex(int handle);
+    public static native int textGetSchCount(int handle);
+    public static native String textGetText(int textPage, int start, int count);
+    public static native RectF textGetRect(int textPage, int index);
+    public static native int textCountRects(int textPage, int start, int count);
+    public static native int textCountChars(int textPage);
+    public static native void textFindClose(int handle);
+    public static native void textClosePage(int textPage);
+
     private static final Class FD_CLASS = FileDescriptor.class;
     private static final String FD_FIELD_NAME = "descriptor";
     private static Field mFdField = null;
 
     private int mCurrentDpi;
+
 
     public PdfiumCore(Context ctx){
         mCurrentDpi = ctx.getResources().getDisplayMetrics().densityDpi;
@@ -115,7 +132,7 @@ public class PdfiumCore {
             try{
                 //nativeRenderPage(doc.mNativePagesPtr.get(pageIndex), surface, mCurrentDpi);
                 nativeRenderPage(doc.mNativePagesPtr.get(pageIndex), surface, mCurrentDpi,
-                                    startX, startY, drawSizeX, drawSizeY);
+                        startX, startY, drawSizeX, drawSizeY);
             }catch(NullPointerException e){
                 Log.e(TAG, "mContext may be null");
                 e.printStackTrace();

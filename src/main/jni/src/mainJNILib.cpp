@@ -9,10 +9,14 @@ extern "C" {
 
 #include <android/native_window.h>
 #include <android/native_window_jni.h>
+#include <android/bitmap.h>
 #include <utils/Mutex.h>
 using namespace android;
 
+
 #include <fpdfview.h>
+#include <fpdfdoc.h>
+#include <fpdftext.h>
 
 
 static Mutex sLibraryLock;
@@ -254,5 +258,136 @@ JNI_FUNC(void, PdfiumCore, nativeRenderPage)(JNI_ARGS, jlong pagePtr, jobject ob
     ANativeWindow_unlockAndPost(nativeWindow);
     ANativeWindow_release(nativeWindow);
 }
+
+
+// Text Module API
+
+JNI_FUNC(jint*, PdfiumCore, textLoadPage)(JNI_ARGS, jlong pagePtr){
+	FPDF_PAGE page = reinterpret_cast<FPDF_PAGE>(pagePtr);
+	return (jint*)FPDFText_LoadPage(page);
+}
+
+JNI_FUNC(void, PdfiumCore, textClosePage)(JNI_ARGS, jint textpage){
+	FPDF_TEXTPAGE pTextPage = reinterpret_cast<FPDF_TEXTPAGE>(textpage);
+	FPDFText_ClosePage(pTextPage);
+}
+
+JNI_FUNC(jint*, PdfiumCore, textFindStart)(JNI_ARGS, jint textpage, jstring findwhat, jlong flag, jint startindex){
+
+    int length = env->GetStringLength(findwhat);
+    const FPDF_WCHAR* wcFind = env->GetStringChars(findwhat, 0);
+
+    FPDF_TEXTPAGE pTextPage = reinterpret_cast<FPDF_TEXTPAGE>(textpage);
+    FPDF_SCHHANDLE searchHandle = NULL;
+    LOGI("wcFind is %x %x %x %x",wcFind[0],wcFind[1],wcFind[2],wcFind[3]);
+
+    searchHandle = FPDFText_FindStart(pTextPage,(FPDF_WCHAR*)wcFind, flag, startindex);
+
+    if(searchHandle == NULL){
+        LOGE("FPDFTextFindStart: FPDFTextFindStart did not return success");
+    }
+
+    return (jint*)searchHandle;
+}
+
+JNI_FUNC(jint, PdfiumCore, textFindNext)(JNI_ARGS, jint searchHandle){
+
+    FPDF_SCHHANDLE pSearchHandle = reinterpret_cast<FPDF_SCHHANDLE>(searchHandle);
+	FPDF_BOOL isMatch = 0;
+	isMatch = FPDFText_FindNext(pSearchHandle);
+	LOGD("FPDFText_FindNext Match is %x",isMatch);
+	return isMatch;
+}
+
+// TODO: incomplete
+JNI_FUNC(jstring, PdfiumCore, textGetText)(JNI_ARGS, jint textpage, jint nStart, jint nCount){
+
+	FPDF_DWORD bufflen = 0;
+
+	FPDF_TEXTPAGE pTextPage = reinterpret_cast<FPDF_TEXTPAGE>(textpage);
+
+    //TODO: How to fix this ????
+	FPDF_WCHAR* pBuff = new FPDF_WCHAR[bufflen+1];
+	pBuff[bufflen] = 0;
+
+	int ret = FPDFText_GetText(pTextPage, nStart, nCount, pBuff);
+
+	if(ret == 0){
+        LOGE("FPDFTextGetText: FPDFTextGetText did not return success");
+    }
+
+	return env->NewString(pBuff, bufflen);
+}
+
+JNI_FUNC(jint, PdfiumCore, textCountChars)(JNI_ARGS, jint textPage){
+
+	FPDF_TEXTPAGE pTextPage = reinterpret_cast<FPDF_TEXTPAGE>(textPage);
+	int count = 0;
+	count = FPDFText_CountChars(pTextPage);
+	return count;
+}
+
+JNI_FUNC(jint, PdfiumCore, textCountRects)(JNI_ARGS, jint textPage, jint start, jint count){
+
+	FPDF_TEXTPAGE pTextPage = reinterpret_cast<FPDF_TEXTPAGE>(textPage);
+	int rectCount = 0;
+	rectCount = FPDFText_CountRects(pTextPage, start, count);
+	return rectCount;
+}
+
+
+JNI_FUNC(jobject, PdfiumCore, textGetRect)(JNI_ARGS, jint textpage, jint index){
+
+    jclass cls_r;
+    double rectLeft, rectTop, rectRight, rectBottom;
+    FPDF_TEXTPAGE pTextPage = reinterpret_cast<FPDF_TEXTPAGE>(textpage);
+
+    FPDFText_GetRect(pTextPage, index, &rectLeft, &rectTop, &rectRight, &rectBottom);
+
+    // get android RectF
+    cls_r = env->FindClass((const char*)"android/graphics/RectF");
+    if (cls_r == NULL){
+        return NULL;
+    }
+
+    jobject obj = env->AllocObject(cls_r);
+    jfieldID left = env->GetFieldID( cls_r, (const char*)"left", "F");
+    jfieldID right = env->GetFieldID(cls_r, (const char*)"right", "F");
+    jfieldID top = env->GetFieldID(cls_r, (const char*)"top", "F");
+    jfieldID bottom = env->GetFieldID( cls_r, (const char*)"bottom", "F");
+
+    env->SetFloatField( obj, left, rectLeft);
+    env->SetFloatField( obj, right, rectRight);
+    env->SetFloatField( obj, top, rectTop);
+    env->SetFloatField( obj, bottom, rectBottom);
+    return obj;
+}
+
+JNI_FUNC(jint, PdfiumCore, textGetSchResultIndex)(JNI_ARGS, jint searchHandle){
+	FPDF_SCHHANDLE pSearchHandle = reinterpret_cast<FPDF_SCHHANDLE>(searchHandle);
+	int index = -1;
+	index = FPDFText_GetSchResultIndex(pSearchHandle);
+	if(index == -1){
+        LOGE("FPDFTextGetSchResultIndex: FPDFTextGetSchResultIndex did not return success");
+    }
+	return index;
+}
+
+JNI_FUNC(jint, PdfiumCore, textGetSchCount)(JNI_ARGS, jint searchHandle){
+	FPDF_SCHHANDLE pSearchHandle = reinterpret_cast<FPDF_SCHHANDLE>(searchHandle);
+	int count = -1;
+	count = FPDFText_GetSchCount(pSearchHandle);
+	if(count == -1){
+        LOGE("FPDFTextGetSchCount: FPDFTextGetSchCount did not return success");
+    }
+	return count;
+}
+
+JNI_FUNC(void, PdfiumCore, textFindClose)(JNI_ARGS, jint searchHandle){
+	FPDF_SCHHANDLE pSearchHandle = reinterpret_cast<FPDF_SCHHANDLE>(searchHandle);
+	FPDFText_FindClose(pSearchHandle);
+}
+
+
 
 }//extern C
