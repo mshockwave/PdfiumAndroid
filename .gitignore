@@ -2,5 +2,5 @@
 
 src/main/libs
 src/main/obj
-
+.idea
 *.iml
