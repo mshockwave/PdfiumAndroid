@@ -1,17 +1,27 @@
-apply plugin: 'com.android.library'
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
 
-apply plugin: 'maven'
-apply plugin: 'signing'
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.13.0'
+    }
+}
+
+apply plugin: 'com.android.library'
+apply plugin: 'maven-publish'
 
 android {
-    compileSdkVersion 21
-    buildToolsVersion "21.1.2"
+    namespace = 'com.shockwave.pdfium'
+    compileSdkVersion 36
 
     defaultConfig {
-        minSdkVersion 9
-        targetSdkVersion 21
-        versionCode 1
-        versionName "1.0"
+        minSdkVersion 23
+        targetSdkVersion 36
+        versionCode 3
+        versionName "2.0.2"
+        buildConfigField "String", "VERSION_NAME", "\"${versionName}\""
     }
     buildTypes {
         release {
@@ -20,78 +30,52 @@ android {
         }
     }
 
-    sourceSets{
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    sourceSets {
         main {
             jni.srcDirs = []
-            jniLibs.srcDir 'src/main/libs'
+            jniLibs.srcDir 'src/main/jni/lib'
         }
     }
+
+    buildFeatures {
+        viewBinding = true
+        buildConfig = true
+    }
+
+    ndkVersion = '28.2.13676358'
+
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
+    // Configure AAR filename to include version
+    libraryVariants.configureEach { variant ->
+        variant.outputs.all {
+            outputFileName = "PdfiumAndroid-${defaultConfig.versionName}-${variant.buildType.name}.aar"
+        }
+    }
+
+    publishing {
+        // Configura la pubblicazione per la variante 'release'
+        singleVariant('release') {}
+    }
+}
+
+repositories {
+    google()
+    mavenCentral()
 }
 
 dependencies {
-    compile fileTree(dir: 'libs', include: ['*.jar'])
-    compile 'com.android.support:appcompat-v7:22.0.0'
-}
-
-version = '1.0.0'
-group = 'com.github.mshockwave'
-
-gradle.taskGraph.whenReady { taskGraph ->
-    Properties properties = new Properties()
-    properties.load(project.rootProject.file('local.properties').newDataInputStream())
-
-    allprojects { ext."signing.keyId" = properties.get("signing.ketId") }
-    allprojects { ext."signing.password" = properties.get("signing.password") }
-    allprojects { ext."signing.secretKeyRingFile" = properties.get("signing.secretKeyRingFile") }
-}
-
-configurations {
-    archives {
-        extendsFrom configurations.default
-    }
-}
-
-signing {
-    //required { gradle.taskGraph.hasTask("uploadArchives") }
-    sign configurations.archives
-}
-
-uploadArchives {
-    configuration = configurations.archives
-    repositories.mavenDeployer {
-        beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
-
-        repository(url: sonatypeRepo) {
-            authentication(userName: sonatypeUsername, password: sonatypePassword)
-        }
-
-        pom.project {
-            name 'Android Pdfium Library'
-            packaging 'aar'
-            description 'Android Pdfium Application Library for API Level greater than 9'
-            url 'https://github.com/mshockwave/PdfiumAndroid'
-
-            scm {
-                url 'scm:git@github.com:mshockwave/PdfiumAndroid.git'
-                connection 'scm:git@github.com:mshockwave/PdfiumAndroid.git'
-                developerConnection 'scm:git@github.com:mshockwave/PdfiumAndroid.git'
-            }
-
-            licenses {
-                license {
-                    name 'The Apache Software License, Version 2.0'
-                    url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
-                    distribution 'repo'
-                }
-            }
-
-            developers {
-                developer {
-                    id 'mshockwave'
-                    name 'Bekket McClane'
-                    email 'yihshyng223@gmail.com'
-                }
-            }
-        }
-    }
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    implementation 'androidx.core:core:1.17.0'
+    androidTestImplementation 'androidx.test.ext:junit:1.3.0'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.7.0'
 }
